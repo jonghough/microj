@@ -38,7 +38,7 @@ namespace App {
             if (args.Length == 2 && args[1] == "-d") {
                 System.Diagnostics.Debugger.Launch();                
             }
-            if (args.Length > 0 && args[0] != "-t")
+            if (args.Length > 0 && args[0] != "-t" && args[0] != "-i")
             {
                 int times = 1;
                 if (args.Length > 1 && args[1] == "-n") {
@@ -232,6 +232,9 @@ namespace MicroJ
             else if (typeof(T) == typeof(double)) {
                 double v = (double)(object)val;
                 if (v < 0) { return "_" + Math.Abs(v); }
+                else if (double.IsInfinity(v)) { return "_"; }
+                else if (v > 0) { return v.ToString(); }
+                else if (double.IsNaN(v)) { return "0"; }
                 else { return v.ToString(); }
             }
             else {
@@ -341,11 +344,13 @@ namespace MicroJ
         public A<T> reduce<T>(AType op, A<T> y) where T : struct {
             if (y.Rank == 1) {
                 var v = new A<T>(1);
-                v.Ravel[0] = y.Ravel[0];
-                for (var i = 1; i < y.Count; i++) {
-                    var yi = new A<T>(1);
-                    yi.Ravel[0] = y.Ravel[i];
-                    v = (A<T>)Verbs.Call2(op, v, yi); //copy the ith item for procesing
+                v.Ravel[0] = y.Ravel[y.Count-2];
+                var next = new A<T>(1);
+                next.Ravel[0] = y.Ravel[y.Count-1];
+                v = (A<T>)Verbs.Call2(op, v, next); 
+                for (var i = y.Count - 3; i >= 0; i--) {
+                    next.Ravel[0] = y.Ravel[i];
+                    v = (A<T>)Verbs.Call2(op, next, v); 
                 }
                 return v;
             } else {
@@ -403,12 +408,13 @@ namespace MicroJ
         
         public A<long> iota<T>(A<T> y) where T : struct  {
             var shape = y.Ravel.Cast<long>().ToArray();
+            var ascending = shape.Where(x=>x<0).Count() == 0;
             long ct = prod(shape);
             var k = Math.Abs(ct);
             var z = new A<long>(k);
-            if (y.Rank > 0) { z.Shape = shape; }
+            if (y.Rank > 0) { z.Shape = shape.Select(x=>Math.Abs(x)).ToArray(); }
             //todo not implemented shape with different signs 3 _3 3
-            if (ct >= 0) {
+            if (ascending) {
                 for(var i = 0; i < k; i++) {
                     z.Ravel[i] = i;
                 }
@@ -713,7 +719,7 @@ namespace MicroJ
                 else {
                     if (!isDigit(p) && c == ' ') { emit(); }
                     else if (p == ' ' && !isDigit(c)) { emit(); currentWord.Append(c); }
-                    else if (isDigit(p) && c != ' ' && c!= '.' && !isDigit(c)) { emit(); currentWord.Append(c); }
+                    else if (isDigit(p) && c != ' ' && c!= '.' && !isDigit(c) && !Char.IsLetter(c)) { emit(); currentWord.Append(c); }
                     else if (c == '(' || c == ')') { emit(); currentWord.Append(c); emit(); }
                     else if ((c == '.' && p == '=') || (c==':' && p== '=')) { currentWord.Append(c); emit(); }
                     else if ((c == '.' && p == 'i')) { currentWord.Append(c); emit(); } //special case for letter symbols
@@ -736,7 +742,7 @@ namespace MicroJ
 
         public bool IsValidName(string word) {
             if (word == null) { return false; }
-            return word.Where(x=>!Char.IsDigit(x) && !Char.IsLetter(x)).Count() == 0;
+            return word.Where(x=>!Char.IsDigit(x) && !Char.IsLetter(x) && x != '_').Count() == 0;
         }
         
         public AType parse(string cmd) {
@@ -906,7 +912,10 @@ namespace MicroJ
 
             tests["negative numbers _5 _6"] = () => equals(toWords("_5 _6"), new string[] { "_5 _6" });
             tests["negative numbers _5 6 _3"] = () => equals(toWords("_5 6 _3"), new string[] { "_5 6 _3" });
-            
+
+            tests["names with number"] = () => equals(toWords("a1b =: 1"), new string[] { "a1b", "=:", "1" });
+            tests["names with underscore"] = () => equals(toWords("a_b =: 1"), new string[] { "a_b", "=:", "1" });
+
             tests["verb assignment"] =() => {
                 var parser = new Parser();
                 parser.parse("plus=: +");
@@ -956,6 +965,7 @@ namespace MicroJ
 
             eqTests["iota simple"] = () => pair(parse("i. 3").ToString(), "0 1 2");
             eqTests["iota simple negative"] = () => pair(parse("i. _3").ToString(), "2 1 0");
+            eqTests["iota negative array"] = () => pair(parse("i. _2 _2").ToString(), "3 2\n1 0");
             eqTests["shape iota simple"] = () => pair(parse("$ i. 3").ToString(), "3");
 
             eqTests["reshape int"] = () => pair(parse("3 $ 3").ToString(),"3 3 3");
@@ -993,6 +1003,17 @@ namespace MicroJ
 
             eqTests["negative numbers add"] = () => pair(parse(" 1 + _5 _6"), "_4 _5");
 
+            // should evaluate right to left, not left to right
+            eqTests["$/ 1 1 5"] = () => pair(parse("$/ 1 1 5").ToString(),"5");
+            eqTests["$/ 5 1 1"] = () => pair(parse("$/ 5 1 1").ToString(),"1 1 1 1 1");
+
+            eqTests["*/ 1 + i. 3"] = () => pair(parse("*/ ( 1 + i. 3 )").ToString(),"6");
+
+            eqTests["4 $ 'ab'"] = () => pair(parse("4 $ 'ab'").ToString(),"abab");
+
+            eqTests["0%0'"] = () => pair(parse("0%0").ToString(),"0");
+            eqTests["1%0"] = () => pair(parse("1%0").ToString(),"_");
+            
             foreach (var key in eqTests.Keys) {
                 try {
                     eqTests[key]();
