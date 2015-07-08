@@ -180,19 +180,17 @@ namespace MicroJ
         }
     }
     public class A<T> : AType where T : struct {
-		public long val;
         public T[] Ravel;
         public long Count { get { return Ravel.Length; } }
 
         public A(long n) {
             //handle atoms
-        if (n == 0) { n = 1; }
-	    long m;
-	    if(n > 0) m = n;
+        	if (n == 0) { n = 1; }
+	    	long m;
+	    	if(n > 0) m = n;
             else m = -n;
             Ravel = new T[m];
             Shape = new long[] { n };
-            val = n;
         }
 
         public A(long n, long[] shape ) {
