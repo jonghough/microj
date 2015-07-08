@@ -180,17 +180,19 @@ namespace MicroJ
         }
     }
     public class A<T> : AType where T : struct {
-
+		public long val;
         public T[] Ravel;
         public long Count { get { return Ravel.Length; } }
 
         public A(long n) {
             //handle atoms
-            if (n == 0) { n = 1; }
-            Ravel = new T[n];
-            if (n > 0) {
-                Shape = new long[] { n };
-            }
+        if (n == 0) { n = 1; }
+	    long m;
+	    if(n > 0) m = n;
+            else m = -n;
+            Ravel = new T[m];
+            Shape = new long[] { n };
+            val = n;
         }
 
         public A(long n, long[] shape ) {
@@ -349,12 +351,21 @@ namespace MicroJ
         
         public A<long> iota<T>(A<T> y) where T : struct  {
             var shape = y.Ravel.Cast<long>().ToArray();
-            long k = prod(shape);
-            var z = new A<long>(k);
+			long k = prod(shape);
+			long l = k >= 0 ? k : -k;
+            var z = new A<long>(l);
             if (y.Rank > 0) { z.Shape = shape; }
-            for(var i = 0; i < k; i++) {
-                z.Ravel[i] = i;
-            }
+	    	if(k >= 0){
+            	for(var i = 0; i < k; i++) {
+                	z.Ravel[i] = i;
+            	}
+	    	}
+	    	else{
+				for(var i = 0; i > k; i--){
+					z.Ravel[-i] = -(k+1-i);
+				}
+	    	}
+	
             return z;
         }
 
