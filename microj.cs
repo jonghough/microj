@@ -925,6 +925,32 @@ namespace MicroJ
             return lst;
         }
 
+		//can be used for 2 p: y, possibly.
+		private Dictionary<long, int> GetFactorPowers(List<long> factorList){
+			Dictionary<long, int> d = new Dictionary<long, int> ();
+			foreach (long l in factorList) {
+				if (d.ContainsKey (l))
+					d [l]++;
+				else
+					d [l] = 0;
+			}
+			return d;
+		}
+
+		//unused.
+		private long FactorizeSimple(long n, long previous){
+			if(n % 2 == 0) return 2;
+			if(n % 3 == 0) return 3;
+			if(n % 5 == 0) return 5;
+
+			long i;
+			for (i = previous; i < Math.Sqrt (n) + 1; i += 2) {
+				if (n % i == 0)
+					return i;
+			}
+			return n;
+		}
+
         private long PollardRho(long n, Random rand){
          
             if(n % 2 == 0) return 2;
@@ -1103,10 +1129,17 @@ namespace MicroJ
                 }
             }
             else if(op == "p:"){
+				/* for 3 p:
 				List<long> fl = Factor((long)((A<long>)y).Ravel[0]);
 				A<long> a = new A<long>((long)fl.Count);
 				a.Ravel = fl.ToArray();
 				return a; //almost certianly wrong value for a. TODO.
+				*/
+				// equivalent to J's p: y
+				int prime = IsPrime ((long)((A<long>)y).Ravel [0]);
+				A<long> a = new A<long>((long)prime);
+				a.Ravel = new long[]{ prime };
+				return a;
             }
             else if (op == "|.") {
                 if (y.GetType() == typeof(A<long>)) {
