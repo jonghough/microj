@@ -1297,6 +1297,13 @@ namespace MicroJ
 				var z = new A<bool> (0);
 				z.Ravel [0] = x.ToString () == y.ToString ();
 				return z;
+			} else if (op == "p:") {
+				if (x.ToString () == "_1") {
+					long prime = Pi ((long)((A<long>)y).Ravel [0]);
+					A<long> a = new A<long> ((long)prime);
+					a.Ravel = new long[]{ prime };
+					return a;
+				}
 			}
 
 			throw new NotImplementedException (op + " on x:" + x + " y:" + y + " type: " + y.GetType ());
@@ -1340,7 +1347,7 @@ namespace MicroJ
 				return a; //almost certianly wrong value for a. TODO.
 				*/
 				// equivalent to J's p: y
-				int prime = IsPrime ((long)((A<long>)y).Ravel [0]);
+				long prime = GetNthPrime ((long)((A<long>)y).Ravel [0]);
 				A<long> a = new A<long> ((long)prime);
 				a.Ravel = new long[]{ prime };
 				return a;
