@@ -37,11 +37,14 @@ namespace App {
     public static class Program
     {
         public static void Main(string[] args) {
-            if (args.Length >= 2 && args[0] == "-d") {
-                Debugger.Launch();
-            }
             var argList = args.ToList();
             var jsIdx = argList.FindIndex(c => c.Contains("-js"));
+            var debug = argList.FindIndex(c => c.Contains("-d")) > -1;
+            var runRepl = argList.FindIndex(c => c.Contains("-i")) > -1 || args.Length == 0;
+            if (debug) {
+                Debugger.Launch();
+            }
+
             if (args.Length > 0 && jsIdx > -1) {
                 int times = 1;
 
@@ -58,11 +61,15 @@ namespace App {
                 AType ret = null;
                 var cmd = String.Join(" ", args.Skip(jsIdx + 1).ToArray());
                 Console.WriteLine(cmd);
-                for (var i = 0; i < times; i++) {
-                    ret = parser.parse(cmd);
+                try {
+                    for (var i = 0; i < times; i++) {
+                        ret = parser.parse(cmd);
+                    }
+                } catch (Exception e) {
+                    Console.WriteLine(e);
                 }
                 watch.Stop();
-                Console.WriteLine(ret.ToString());
+                if (ret != null) Console.WriteLine(ret.ToString());
                 Console.WriteLine("Took: {0} ms", (watch.ElapsedMilliseconds) / (double)times);
                 Console.WriteLine("Total: {0} ms", (watch.ElapsedMilliseconds));
                 long kbAfter1 = GC.GetTotalMemory(false) / 1024;
@@ -75,70 +82,77 @@ namespace App {
                 Console.WriteLine(kbAfter2 - kbAfter1 + " Amt. Collected by GC.");
             } else if (args.Length > 0 && args[0] == "-tp") {
                 new Tests().TestAll();
-            } else if (args.Length > 0) {
-                if (!File.Exists(args[0])) {
-                    Console.WriteLine("file: " + args[0] + " does not exist");
-                    return;
-                }
-                bool testMode = argList.FindIndex(c => c.Contains("-t")) > -1;
-                bool quiet = argList.FindIndex(c => c.Contains("-q")) > -1;
-                string[] lines = File.ReadAllLines(args[0]);
-                var parser = new Parser();
-                foreach (var tline in lines) {
-                    var line = tline;
-                    try {
-                        if (line.StartsWith("NB.") || line.Length == 0) continue;
-                        if (line.StartsWith("exit")) break;
-                        if (line.StartsWith("B!")) {
-                            Debugger.Launch();
-                            Debugger.Break();
-                            line = line.Substring(2, line.Length - 2);
-                        }
-                        var ret = parser.parse(line).ToString();
-                        if (testMode && ret != "1") {
-                            var eqIdx = line.IndexOf("=");
-                            var rerun = "";
-                            if (eqIdx > -1) {
-                                rerun = parser.parse(line.Substring(0, eqIdx)).ToString();
+            } else {
+                var repl = new Parser();
+
+                var files = new List<string>();
+                if (File.Exists("stdlib.ijs")) { files.Add("stdlib.ijs"); }
+                if (args.Length > 0) { files.Add(args[0]); }
+
+                foreach(var file in files.Where(x=>!x.StartsWith("-"))) {
+                    if (!File.Exists(file)) {
+                        Console.WriteLine("file: " + file + " does not exist");
+                        return;
+                    }
+                    bool testMode = argList.FindIndex(c => c.Contains("-t")) > -1;
+                    bool quiet = argList.FindIndex(c => c.Contains("-q")) > -1;
+                    if (file == "stdlib.ijs") { quiet = true; }
+                    string[] lines = File.ReadAllLines(file);
+                    foreach (var tline in lines) {
+                        var line = tline;
+                        try {
+                            if (line.StartsWith("NB.") || line.Length == 0) continue;
+                            if (line.StartsWith("exit")) break;
+                            if (line.StartsWith("B!")) {
+                                Debugger.Launch();
+                                Debugger.Break();
+                                line = line.Substring(2, line.Length - 2);
                             }
-                            eqIdx = line.IndexOf("-:");
-                            if (eqIdx > -1) {
-                                rerun = parser.parse(line.Substring(0, eqIdx)).ToString();
+                            var ret = repl.parse(line).ToString();
+                            if (testMode && ret != "1") {
+                                var eqIdx = line.IndexOf("=");
+                                var rerun = "";
+                                if (eqIdx > -1) {
+                                    rerun = repl.parse(line.Substring(0, eqIdx)).ToString();
+                                }
+                                eqIdx = line.IndexOf("-:");
+                                if (eqIdx > -1) {
+                                    rerun = repl.parse(line.Substring(0, eqIdx)).ToString();
+                                }
+                                Console.WriteLine("TEST FAILED - " + line + " returned " + ret + " output: " + rerun);
                             }
-                            Console.WriteLine("TEST FAILED - " + line + " returned " + ret + " output: " + rerun);
+                            if (!quiet){
+                                Console.WriteLine(ret);
+                            }
+                        } catch (Exception e) {
+                            Console.WriteLine(line + "\n" + e);
                         }
-                        if (!quiet){
-                            Console.WriteLine(ret);
-                        }
-                    } catch (Exception e) {
-                        Console.WriteLine(line + "\n" + e);
                     }
                 }
-            }
-            else {
-                string prompt = "    ";
-                var parser = new Parser();
-                while (true) {
-                    Console.Write(prompt);
+                if (runRepl) {
+                    string prompt = "    ";
+                    while (true) {
+                        Console.Write(prompt);
 
-                    var line = Console.ReadLine();
-                    if (line == null)
-                        break;
+                        var line = Console.ReadLine();
+                        if (line == null)
+                            break;
 
-                    // on Linux, pressing arrow keys will insert null characters to line
-                    line = line.Replace("\0", "");
-                    if (line == "exit")
-                        break;
+                        // on Linux, pressing arrow keys will insert null characters to line
+                        line = line.Replace("\0", "");
+                        if (line == "exit")
+                            break;
 
-                    line = line.Trim();
-                    if (line == "")
-                        continue;
+                        line = line.Trim();
+                        if (line == "")
+                            continue;
 
-                    try {
-                        var ret = parser.parse(line);
-                        Console.WriteLine(ret.ToString());
-                    } catch (Exception e) {
-                        Console.WriteLine(e.ToString());
+                        try {
+                            var ret = repl.parse(line);
+                            Console.WriteLine(ret.ToString());
+                        } catch (Exception e) {
+                            Console.WriteLine(e.ToString());
+                        }
                     }
                 }
             }
@@ -184,7 +198,7 @@ namespace MicroJ
                 word = word.Replace("_", "-");
             }
 
-            if (environment.Names.ContainsKey(word)) {
+            if (environment != null && environment.Names.ContainsKey(word)) {
                 return environment.Names[word];
             }
             else if (word.StartsWith("'")) {
@@ -244,6 +258,15 @@ namespace MicroJ
         public string adverb;
         public string conj;
         public string rhs;
+        public object childVerb;
+        public override string ToString() {
+            string str = "";
+            if (op != null) str+=op;
+            if (adverb != null) str+=" " + adverb;
+            if (conj != null) str+=" " + conj;
+            if (rhs != null) str+=" " + rhs;
+            return str;
+        }
     }
 
     //tbd should we use chars instead?
@@ -364,7 +387,7 @@ namespace MicroJ
     }
 
     public class Conjunctions {
-        public static readonly string[] Words = new[] { "\"", "!:" };
+        public static readonly string[] Words = new[] { "\"", "!:", "&" };
         public Verbs Verbs;
 
         public Conjunctions(Verbs verbs) {
@@ -377,7 +400,12 @@ namespace MicroJ
 
             //create a new verb without the conj component so we can safely pass it around
             var newVerb = new A<Verb>(1);
-            newVerb.Ravel[0] = new Verb { op = verb.op, adverb = verb.adverb };
+            if (verb.childVerb != null) {
+                Verb cv = (Verb)verb.childVerb;
+                newVerb.Ravel[0] = cv;
+            } else {
+                newVerb.Ravel[0] = new Verb { op = verb.op, adverb = verb.adverb };
+            }
 
             if (newRank == y.Rank) { return (A<T>)Verbs.Call1(newVerb, y); }
 
@@ -410,17 +438,93 @@ namespace MicroJ
             return v;
         }
 
+        //to use interop, download https://csscriptsource.codeplex.com/releases/view/614904
+        //and put CSScriptLibrary.dll and Mono.CSharp.dll into the bin folder (relative to the exe)
+        //future: add a boxed method that can take parameters
+        //(3 2 $ 'abc')  (150!:0) 'return v.ToString();'
+        //(3 2 $ 'abc')  (150!:0) 'return v.Ravel[0].str;'
+        //(3 2 $ 'abc')  (150!:0) 'return v.Rank.ToString();'
+        //(3 2 $ 1)  (150!:0) 'return v.ToString();'
+        //'' (150!:0) 'System.Diagnostics.Debugger.Break();'
+        //should the code be x or y?
+        Dictionary<string, object> dotnetMethodCache = null;
+        public A<JString> calldotnet<T>(A<T> x, A<JString> y) where T : struct {
+
+            if (dotnetMethodCache == null ) { dotnetMethodCache = new Dictionary<string, object>(); }
+            object func = null;
+            if (!dotnetMethodCache.TryGetValue(y.Ravel[0].str, out func)) {
+
+                var  path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+
+                AppDomain currentDomain = AppDomain.CurrentDomain;
+
+                currentDomain.AssemblyResolve +=  new ResolveEventHandler((sender,args) => {
+                    string folderPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                    string assemblyPath = Path.Combine(folderPath + "\\bin\\", new AssemblyName(args.Name).Name + ".dll");
+                    if (File.Exists(assemblyPath) == false) return null;
+                    Assembly dependency = Assembly.LoadFrom(assemblyPath);
+                    return dependency;
+                });
+
+                foreach (var dll  in Directory.GetFiles(path + "\\bin\\", "*.dll")) {
+                    if (!dll.Contains("CSScriptLibrary")) 
+                        Assembly.LoadFile(dll);
+                }
+                Assembly assembly = Assembly.LoadFile(path + "\\bin\\CSScriptLibrary.dll");
+                
+                Type type = assembly.GetType("CSScriptLibrary.CSScript");
+                if (type != null)
+                {
+                    MethodInfo methodInfo = type.GetMethod("BuildEval");
+                    if (methodInfo != null)
+                    {
+                        object classInstance = Activator.CreateInstance(type, null);
+                        object[] parametersArray = new object[] { "func(dynamic v) { " + y.Ravel[0] + " }"};
+                        func = methodInfo.Invoke(classInstance, parametersArray);
+                    } 
+                }
+            }
+            var ret = ((dynamic)func)(x);
+            var v = new A<JString>(0);
+            v.Ravel[0] = new JString { str = ret };
+            return v;
+        }
+        
         public AType Call1(AType method, AType y) {
             var verb = ((A<Verb>)method).Ravel[0];
 
+            //rank
             if (verb.conj == "\"") {
                 //future: add special code for +/"n or use some type of integrated rank support
                 if (y.GetType() == typeof(A<long>)) { return rank1ex(method, (A<long>)y); }
                 //todo: evaluate performance of dynamic dispatch of rank -- probably ok
                 else return Verbs.InvokeExpression("rank1ex", method, y, 1, this);
             }
+            //bond
+            else if (verb.conj == "&") {
+                var x = AType.MakeA(verb.rhs, null);
+                var newVerb = new A<Verb>(0);
+                newVerb.Ravel[0] = (Verb)verb.childVerb;
+                //todo this order may not be right
+                return Call2(newVerb,y,x);
+                
+            }
             throw new NotImplementedException(verb.conj + " on y:" + y + " type: " + y.GetType());
         }
+
+        public AType Call2(AType method, AType x, AType y) {
+            var verb = ((A<Verb>)method).Ravel[0];
+            if (verb.conj == "!:" && verb.op == "150") {
+                if (x.GetType() == typeof(A<JString>)) {
+                    return (A<JString>)calldotnet((A<JString>) x, (A<JString>)y);
+                }
+                else if (x.GetType() == typeof(A<long>)) {
+                    return (A<JString>)calldotnet((A<long>) x, (A<JString>)y);
+                }
+            }
+            throw new NotImplementedException(verb.conj + " on y:" + y + " type: " + y.GetType());
+        }
+
     }
     public class Adverbs {
         public static readonly string[] Words = new[] { "/" };
@@ -555,14 +659,15 @@ namespace MicroJ
                 return table(newVerb, (A<long>)x, (A<long>)y);
             }
 
-            throw new NotImplementedException(adverb + " on x:" + x + " y:" + y + " type: " + y.GetType());
+            throw new NotImplementedException("ADV: " + adverb + " on x:" + x + " y:" + y + " type: " + y.GetType());
         }
 
     }
 
     public class Verbs {
 
-        public static readonly string[] Words = new[] { "+", "-", "*", "%", "i.", "$", "#", "=", "|:", "|.", "-:","p:" };
+		public static readonly string[] Words = new[] { "+", "-", "*", "%", "i.", "$", "#", "=", "|:", "|.", "-:", "[","p:"};
+
         public Adverbs Adverbs = null;
         public Conjunctions Conjunctions = null;
 
@@ -1008,6 +1113,12 @@ namespace MicroJ
             if (verb.adverb != null) {
                 return Adverbs.Call2(method, x, y);
             }
+
+            //future: add check for integrated rank support
+            if (verb.conj != null) {
+                return Conjunctions.Call2(method, x, y);
+            }
+
             var op = verb.op;
 
 
@@ -1229,6 +1340,12 @@ namespace MicroJ
         public struct Token {
             public string word;
             public AType val;
+            public override string ToString()  {
+                string str = "";
+                if (word != null) str += word;
+                if (val != null) str+= " " + val;
+                return str;
+            }
         }
 
         public bool IsValidName(string word) {
@@ -1325,7 +1442,8 @@ namespace MicroJ
                         var z = new A<Verb>(0);
                         //todo handle conjunction returning noun
                         if (isVerb(lhs)) {
-                            z.Ravel[0] = ((A<Verb>)lhs.val).Ravel[0];
+                            //z.Ravel[0] = ((A<Verb>)lhs.val).Ravel[0];
+                            z.Ravel[0].childVerb = ((A<Verb>)lhs.val).Ravel[0];
                         } else {
                             z.Ravel[0].op = lhs.word;
                         }
