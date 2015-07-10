@@ -1314,9 +1314,9 @@ namespace MicroJ
 					A<long> a = new A<long> ((long)prime);
 					a.Ravel = new long[]{ prime };
 					return a;
-				}else if (x.ToString () == "1") { //factors with exponents
+				}else if (x.ToString () == "2") { //factors with exponents
 					//TODO
-				}else if (x.ToString () == "2") { //factor list
+				}else if (x.ToString () == "3") { //factor list
 					List<long> fl = Factor((long)((A<long>)y).Ravel[0]);
 					A<long> a = new A<long>((long)fl.Count);
 					a.Ravel = fl.ToArray();
