@@ -562,7 +562,7 @@ namespace MicroJ
 
     public class Verbs {
 
-        public static readonly string[] Words = new[] { "+", "-", "*", "%", "i.", "$", "#", "=", "|:", "|.", "-:" };
+        public static readonly string[] Words = new[] { "+", "-", "*", "%", "i.", "$", "#", "=", "|:", "|.", "-:","p:" };
         public Adverbs Adverbs = null;
         public Conjunctions Conjunctions = null;
 
@@ -939,21 +939,21 @@ namespace MicroJ
             long b = a;
             long divisor;
             //
-            a = (a*a+summand) % n;
-            b = (((b*b+summand) % n) * ((b*b+summand) % n) + summand) % n;
+            a = (n + a*a+summand) % n;
+			b = (((n + b*b+summand) % n) * (n + (n + b*b+summand) % n) + summand) % n;
             divisor = GCD(a-b,n);
 
             while(divisor == 1){
-                a = (a*a+summand) % n;
-                b = (((b*b+summand) % n) * ((b*b+summand) % n) + summand) % n;
-                divisor = GCD(a-b,n);
+                a = (a * a + summand) % n;
+				b = (((n + b * b + summand) % n) * (n + (n + b * b + summand) % n) + summand) % n;
+                divisor = GCD(a-b, n);
             }
             return divisor;
         }
 
         private long GCD(long a, long b)
         {
-            return b == 0 ? a : GCD(b, a % b);
+			return b == 0 ? a : GCD(b, (b + a) % b);
         }
 
 
@@ -969,6 +969,12 @@ namespace MicroJ
             }
             return z;
         }
+
+        // private long Totient(long n){
+        //     List<long> fl = Factor(n);// factor list of n.
+        //     Dictionary<long, int> fd = new Dictionary<long, int>();
+
+        // }
 
 
         public AType Call2(AType method, AType x, AType y) {
@@ -1078,10 +1084,9 @@ namespace MicroJ
             var op = verb.op;
             if (op == "i.") {
                 if (y.GetType() == typeof(A<int>)) {
-                    Console.WriteLine("Pi "+Pi(100));
                     return iota((A<int>)y);
                 }
-                else if (y.GetType() == typeof(A<long>)) {
+				else if (y.GetType() == typeof(A<long>)) {
                     return iota((A<long>)y);
                 }
             } else if (op == "$") {
@@ -1096,6 +1101,12 @@ namespace MicroJ
                 else if (y.GetType() == typeof(A<long>)) {
                     return transpose((A<long>)y);
                 }
+            }
+            else if(op == "p:"){
+				List<long> fl = Factor((long)((A<long>)y).Ravel[0]);
+				A<long> a = new A<long>((long)fl.Count);
+				a.Ravel = fl.ToArray();
+				return a; //almost certianly wrong value for a. TODO.
             }
             else if (op == "|.") {
                 if (y.GetType() == typeof(A<long>)) {
