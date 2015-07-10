@@ -1298,10 +1298,28 @@ namespace MicroJ
 				z.Ravel [0] = x.ToString () == y.ToString ();
 				return z;
 			} else if (op == "p:") {
-				if (x.ToString () == "_1") {
+				if (x.ToString () == "_1") { // Pi(y)
 					long prime = Pi ((long)((A<long>)y).Ravel [0]);
 					A<long> a = new A<long> ((long)prime);
 					a.Ravel = new long[]{ prime };
+					return a;
+				}else if (x.ToString () == "0") { //anti-is prime check
+					int prime = IsPrime ((long)((A<long>)y).Ravel [0]);
+					prime = (1 - prime) % 2;
+					A<long> a = new A<long> ((long)prime);
+					a.Ravel = new long[]{ prime };
+					return a;
+				}else if (x.ToString () == "1") { //is prime check
+					int prime = IsPrime ((long)((A<long>)y).Ravel [0]);
+					A<long> a = new A<long> ((long)prime);
+					a.Ravel = new long[]{ prime };
+					return a;
+				}else if (x.ToString () == "1") { //factors with exponents
+					//TODO
+				}else if (x.ToString () == "2") { //factor list
+					List<long> fl = Factor((long)((A<long>)y).Ravel[0]);
+					A<long> a = new A<long>((long)fl.Count);
+					a.Ravel = fl.ToArray();
 					return a;
 				}
 			}
@@ -1340,12 +1358,6 @@ namespace MicroJ
 					return transpose ((A<long>)y);
 				}
 			} else if (op == "p:") {
-				/* for 3 p:
-				List<long> fl = Factor((long)((A<long>)y).Ravel[0]);
-				A<long> a = new A<long>((long)fl.Count);
-				a.Ravel = fl.ToArray();
-				return a; //almost certianly wrong value for a. TODO.
-				*/
 				// equivalent to J's p: y
 				long prime = GetNthPrime ((long)((A<long>)y).Ravel [0]);
 				A<long> a = new A<long> ((long)prime);
